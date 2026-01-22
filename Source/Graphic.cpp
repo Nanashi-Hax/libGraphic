@@ -2,8 +2,10 @@
 #include "gx2/enum.h"
 #include "gx2/shaders.h"
 
+#include <cstddef>
 #include <gx2/mem.h>
 #include <gx2/utils.h>
+#include <gx2r/buffer.h>
 #include <gfd.h>
 #include <memory/mappedmemory.h>
 #include <format>
@@ -36,9 +38,39 @@ namespace Graphic
         stream.type = GX2_ATTRIB_INDEX_PER_VERTEX;
         stream.aluDivisor = 0;
         stream.mask = getAttributeMask(format);
-        stream.endianSwap = GX2_ENDIAN_SWAP_DEFAULT;
+        stream.endianSwap = GX2_ENDIAN_SWAP_8_IN_32;
     
         attribute.add(stream, name, offset, format);
+    }
+
+    void Shader::addVertexUniform(std::string const & name, size_t size)
+    {
+        GX2RBuffer buffer{};
+        buffer.flags = GX2R_RESOURCE_BIND_UNIFORM_BLOCK | GX2R_RESOURCE_USAGE_CPU_READ | GX2R_RESOURCE_USAGE_CPU_WRITE | GX2R_RESOURCE_USAGE_GPU_READ;
+        buffer.elemSize = size;
+        buffer.elemCount = 1;
+        GX2RCreateBuffer(&buffer);
+
+        void * lockedBuffer = GX2RLockBufferEx(&buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
+        GX2Invalidate(GX2_INVALIDATE_MODE_CPU | GX2_INVALIDATE_MODE_UNIFORM_BLOCK, lockedBuffer, buffer.elemSize * buffer.elemCount);
+        GX2RUnlockBufferEx(&buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
+
+        vertexUniform[name] = buffer;
+    }
+
+    void Shader::addPixelUniform(std::string const & name, size_t size)
+    {
+        GX2RBuffer buffer{};
+        buffer.flags = GX2R_RESOURCE_BIND_UNIFORM_BLOCK | GX2R_RESOURCE_USAGE_CPU_READ | GX2R_RESOURCE_USAGE_CPU_WRITE | GX2R_RESOURCE_USAGE_GPU_READ;
+        buffer.elemSize = size;
+        buffer.elemCount = 1;
+        GX2RCreateBuffer(&buffer);
+
+        void * lockedBuffer = GX2RLockBufferEx(&buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
+        GX2Invalidate(GX2_INVALIDATE_MODE_CPU | GX2_INVALIDATE_MODE_UNIFORM_BLOCK, lockedBuffer, buffer.elemSize * buffer.elemCount);
+        GX2RUnlockBufferEx(&buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
+
+        pixelUniform[name] = buffer;
     }
     
     void Shader::initFetch()
@@ -55,9 +87,38 @@ namespace Graphic
     
     void Shader::use()
     {
+        GX2SetShaderMode(GX2_SHADER_MODE_UNIFORM_BLOCK);
         GX2SetVertexShader(vertexShader);
         GX2SetPixelShader(pixelShader);
         GX2SetFetchShader(fetchShader);
+    }
+
+    void Shader::updateVertexUniform(std::string const & name, std::span<std::byte> data)
+    {
+        auto it = vertexUniform.find(name);
+        if(it == vertexUniform.end()) throw std::invalid_argument(std::format("VertexUniform name: {} is invalid", name));
+        GX2RBuffer * buffer = &it->second;
+        void* lockedBuffer = GX2RLockBufferEx(buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
+        GX2Invalidate(GX2_INVALIDATE_MODE_CPU | GX2_INVALIDATE_MODE_UNIFORM_BLOCK, lockedBuffer, buffer->elemSize * buffer->elemCount);
+        memcpy(lockedBuffer, data.data(), data.size());
+        GX2RUnlockBufferEx(buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
+
+        int32_t location = getVertexUniformLocation(name.c_str());
+        GX2RSetVertexUniformBlock(const_cast<GX2RBuffer *>(buffer), location, 0);
+    }
+
+    void Shader::updatePixelUniform(std::string const & name, std::span<std::byte> data)
+    {
+        auto it = pixelUniform.find(name);
+        if(it == pixelUniform.end()) throw std::invalid_argument(std::format("PixelUniform name: {} is invalid", name));
+        GX2RBuffer * buffer = &it->second;
+        void* lockedBuffer = GX2RLockBufferEx(buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
+        GX2Invalidate(GX2_INVALIDATE_MODE_CPU | GX2_INVALIDATE_MODE_UNIFORM_BLOCK, lockedBuffer, buffer->elemSize * buffer->elemCount);
+        memcpy(lockedBuffer, data.data(), data.size());
+        GX2RUnlockBufferEx(buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
+
+        int32_t location = getPixelUniformLocation(name.c_str());
+        GX2RSetPixelUniformBlock(const_cast<GX2RBuffer *>(buffer), location, 0);
     }
     
     void Shader::initPixel(void const * file)
@@ -189,6 +250,30 @@ namespace Graphic
                 return GX2_SEL_MASK(GX2_SQ_SEL_0, GX2_SQ_SEL_0, GX2_SQ_SEL_0, GX2_SQ_SEL_1);
             }
         }
+    }
+
+    int32_t Shader::getVertexUniformLocation(std::string const & name)
+    {
+        for (uint32_t i = 0; i < vertexShader->uniformBlockCount; i++)
+        {
+            if(vertexShader->uniformBlocks[i].name == name)
+            {
+                return vertexShader->uniformBlocks[i].offset;
+            }
+        }
+        throw std::invalid_argument(std::format("VertexUniform name: {} is invalid", name));
+    }
+
+    int32_t Shader::getPixelUniformLocation(std::string const & name)
+    {
+        for (uint32_t i = 0; i < pixelShader->uniformBlockCount; i++)
+        {
+            if(pixelShader->uniformBlocks[i].name == name)
+            {
+                return pixelShader->uniformBlocks[i].offset;
+            }
+        }
+        throw std::invalid_argument(std::format("PixelUniform name: {} is invalid", name));
     }
     
     void Shader::Attribute::add(GX2AttribStream const & stream, std::string const & name, uint32_t offset, AttributeFormat format)

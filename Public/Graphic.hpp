@@ -1,8 +1,11 @@
 #pragma once
 
+#include "gx2r/buffer.h"
 #include <gx2/shaders.h>
 #include <string>
 #include <vector>
+#include <map>
+#include <span>
 
 namespace Graphic
 {
@@ -14,37 +17,44 @@ namespace Graphic
             SNorm8x1 = GX2_ATTRIB_FORMAT_SNORM_8,
             SNorm8x2 = GX2_ATTRIB_FORMAT_SNORM_8_8,
             SNorm8x4 = GX2_ATTRIB_FORMAT_SNORM_8_8_8_8,
-        
+
             UNorm8x1 = GX2_ATTRIB_FORMAT_UNORM_8,
             UNorm8x2 = GX2_ATTRIB_FORMAT_UNORM_8_8,
             UNorm8x4 = GX2_ATTRIB_FORMAT_UNORM_8_8_8_8,
-        
+
             SInt8x1 = GX2_ATTRIB_FORMAT_SINT_8,
             SInt8x2 = GX2_ATTRIB_FORMAT_SINT_8_8,
             SInt8x4 = GX2_ATTRIB_FORMAT_SINT_8_8_8_8,
-        
+
             UInt8x1 = GX2_ATTRIB_FORMAT_UINT_8,
             UInt8x2 = GX2_ATTRIB_FORMAT_UINT_8_8,
             UInt8x4 = GX2_ATTRIB_FORMAT_UINT_8_8_8_8,
-        
+
             Float32x1 = GX2_ATTRIB_FORMAT_FLOAT_32,
             Float32x2 = GX2_ATTRIB_FORMAT_FLOAT_32_32,
             Float32x3 = GX2_ATTRIB_FORMAT_FLOAT_32_32_32,
             Float32x4 = GX2_ATTRIB_FORMAT_FLOAT_32_32_32_32
         };
-    
+
         Shader(void const * file);
         ~Shader();
-    
+
         // Initialize
         void addAttribute(std::string const & name, uint32_t offset, AttributeFormat format);
-    
+        void addVertexUniform(std::string const & name, size_t size);
+        void addPixelUniform(std::string const & name, size_t size);
+
         // After setting attribute
         void initFetch();
-    
+
         // Use
         void use();
-    
+
+        // After using shader
+        // Assumes that data has already been endian converted
+        void updateVertexUniform(std::string const & name, std::span<std::byte> data);
+        void updatePixelUniform(std::string const & name, std::span<std::byte> data);
+
     private:
         class Attribute
         {
@@ -54,23 +64,29 @@ namespace Graphic
             std::vector<std::string>& name();
             std::vector<uint32_t>& offset();
             std::vector<AttributeFormat>& format();
-        
+
         private:
             std::vector<GX2AttribStream> _stream;
             std::vector<std::string> _name;
             std::vector<uint32_t> _offset;
             std::vector<AttributeFormat> _format;
         };
-    
+
         void initVertex(void const * file);
         void initPixel(void const * file);
-    
+
         Attribute attribute;
+        std::map<std::string, GX2RBuffer> vertexUniform;
+        std::map<std::string, GX2RBuffer> pixelUniform;
+
         GX2VertexShader * vertexShader;
         GX2PixelShader * pixelShader;
         GX2FetchShader * fetchShader;
-    
+
         int getAttributeLocation(std::string const & name);
         uint32_t getAttributeMask(AttributeFormat format);
+
+        int32_t getVertexUniformLocation(std::string const & name);
+        int32_t getPixelUniformLocation(std::string const & name);
     };
 }
