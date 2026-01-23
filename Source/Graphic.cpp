@@ -1,11 +1,13 @@
 #include "Graphic.hpp"
 #include "gx2/enum.h"
 #include "gx2/shaders.h"
+#include "gx2/surface.h"
 
 #include <cstddef>
 #include <gx2/mem.h>
 #include <gx2/utils.h>
 #include <gx2r/buffer.h>
+#include <gx2r/surface.h>
 #include <gfd.h>
 #include <memory/mappedmemory.h>
 #include <format>
@@ -302,5 +304,59 @@ namespace Graphic
     std::vector<Shader::AttributeFormat>& Shader::Attribute::format()
     {
         return _format;
+    }
+
+    ColorBuffer::ColorBuffer(uint32_t width, uint32_t height)
+    {
+        buffer = new GX2ColorBuffer();
+        memset(buffer, 0, sizeof(GX2ColorBuffer));
+
+        buffer->surface.dim = GX2_SURFACE_DIM_TEXTURE_2D;
+        buffer->surface.use = GX2_SURFACE_USE_COLOR_BUFFER;
+        buffer->surface.width = width;
+        buffer->surface.height = height;
+        buffer->surface.depth = 1;
+        buffer->surface.mipLevels = 1;
+        buffer->surface.format = GX2_SURFACE_FORMAT_UNORM_R8_G8_B8_A8;
+        buffer->surface.aa = GX2_AA_MODE1X;
+        buffer->surface.tileMode = GX2_TILE_MODE_LINEAR_ALIGNED;
+
+        GX2RCreateSurface
+        (
+            &buffer->surface,
+            GX2R_RESOURCE_BIND_COLOR_BUFFER |
+            GX2R_RESOURCE_USAGE_GPU_WRITE |
+            GX2R_RESOURCE_USAGE_GPU_READ |
+            GX2R_RESOURCE_USAGE_CPU_WRITE |
+            GX2R_RESOURCE_USAGE_CPU_READ
+        );
+        GX2InitColorBufferRegs(buffer);
+    }
+
+    ColorBuffer::~ColorBuffer()
+    {
+        if (buffer)
+        {
+            if (buffer->surface.image)
+            {
+                GX2RDestroySurfaceEx
+                (
+                    &buffer->surface,
+                    GX2R_RESOURCE_BIND_TEXTURE |
+                    GX2R_RESOURCE_USAGE_GPU_WRITE |
+                    GX2R_RESOURCE_USAGE_GPU_READ |
+                    GX2R_RESOURCE_USAGE_CPU_WRITE |
+                    GX2R_RESOURCE_USAGE_CPU_READ
+                );
+                buffer->surface.image = nullptr;
+            }
+
+            delete buffer;
+        }
+    }
+
+    void ColorBuffer::use()
+    {
+        GX2SetColorBuffer(buffer, GX2_RENDER_TARGET_0);
     }
 }

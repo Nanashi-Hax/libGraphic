@@ -1,7 +1,9 @@
 #pragma once
 
+#include "gx2/surface.h"
 #include "gx2r/buffer.h"
 #include <gx2/shaders.h>
+#include <gx2/texture.h>
 #include <string>
 #include <vector>
 #include <map>
@@ -88,5 +90,16 @@ namespace Graphic
 
         int32_t getVertexUniformLocation(std::string const & name);
         int32_t getPixelUniformLocation(std::string const & name);
+    };
+
+    class ColorBuffer
+    {
+    public:
+        ColorBuffer(uint32_t width, uint32_t height);
+        ~ColorBuffer();
+        void use();
+
+    private:
+        GX2ColorBuffer * buffer;
     };
 }
