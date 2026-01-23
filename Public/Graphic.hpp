@@ -95,9 +95,16 @@ namespace Graphic
     class ColorBuffer
     {
     public:
+        enum class Target
+        {
+            TV,
+            DRC
+        };
+
         ColorBuffer(uint32_t width, uint32_t height);
         ~ColorBuffer();
         void use();
+        void swap(Target target);
 
     private:
         GX2ColorBuffer * buffer;

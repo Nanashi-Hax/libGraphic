@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <gx2/mem.h>
 #include <gx2/utils.h>
+#include <gx2/swap.h>
 #include <gx2r/buffer.h>
 #include <gx2r/surface.h>
 #include <gfd.h>
@@ -326,9 +327,7 @@ namespace Graphic
             &buffer->surface,
             GX2R_RESOURCE_BIND_COLOR_BUFFER |
             GX2R_RESOURCE_USAGE_GPU_WRITE |
-            GX2R_RESOURCE_USAGE_GPU_READ |
-            GX2R_RESOURCE_USAGE_CPU_WRITE |
-            GX2R_RESOURCE_USAGE_CPU_READ
+            GX2R_RESOURCE_USAGE_GPU_READ
         );
         GX2InitColorBufferRegs(buffer);
     }
@@ -342,11 +341,9 @@ namespace Graphic
                 GX2RDestroySurfaceEx
                 (
                     &buffer->surface,
-                    GX2R_RESOURCE_BIND_TEXTURE |
+                    GX2R_RESOURCE_BIND_COLOR_BUFFER |
                     GX2R_RESOURCE_USAGE_GPU_WRITE |
-                    GX2R_RESOURCE_USAGE_GPU_READ |
-                    GX2R_RESOURCE_USAGE_CPU_WRITE |
-                    GX2R_RESOURCE_USAGE_CPU_READ
+                    GX2R_RESOURCE_USAGE_GPU_READ
                 );
                 buffer->surface.image = nullptr;
             }
@@ -358,5 +355,11 @@ namespace Graphic
     void ColorBuffer::use()
     {
         GX2SetColorBuffer(buffer, GX2_RENDER_TARGET_0);
+    }
+
+    void ColorBuffer::swap(Target target)
+    {
+        if(target == Target::TV) GX2CopyColorBufferToScanBuffer(buffer, GX2_SCAN_TARGET_TV);
+        if(target == Target::DRC) GX2CopyColorBufferToScanBuffer(buffer, GX2_SCAN_TARGET_DRC);
     }
 }
