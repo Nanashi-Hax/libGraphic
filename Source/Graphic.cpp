@@ -14,8 +14,6 @@
 #include <format>
 #include <stdexcept>
 
-#include <whb/log.h>
-
 namespace Graphic
 {
     Shader::Shader(void const * file)
@@ -46,11 +44,11 @@ namespace Graphic
         attribute.add(stream, name, offset, format);
     }
 
-    void Shader::addVertexUniform(std::string const & name, size_t size)
+    void Shader::initUniform(size_t bufferSize)
     {
         GX2RBuffer buffer{};
-        buffer.flags = GX2R_RESOURCE_BIND_UNIFORM_BLOCK | GX2R_RESOURCE_USAGE_CPU_READ | GX2R_RESOURCE_USAGE_CPU_WRITE | GX2R_RESOURCE_USAGE_GPU_READ;
-        buffer.elemSize = size;
+        buffer.flags = GX2R_RESOURCE_BIND_UNIFORM_BLOCK | GX2R_RESOURCE_USAGE_CPU_WRITE | GX2R_RESOURCE_USAGE_GPU_READ;
+        buffer.elemSize = bufferSize;
         buffer.elemCount = 1;
         GX2RCreateBuffer(&buffer);
 
@@ -58,22 +56,7 @@ namespace Graphic
         GX2Invalidate(GX2_INVALIDATE_MODE_CPU | GX2_INVALIDATE_MODE_UNIFORM_BLOCK, lockedBuffer, buffer.elemSize * buffer.elemCount);
         GX2RUnlockBufferEx(&buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
 
-        vertexUniform[name] = buffer;
-    }
-
-    void Shader::addPixelUniform(std::string const & name, size_t size)
-    {
-        GX2RBuffer buffer{};
-        buffer.flags = GX2R_RESOURCE_BIND_UNIFORM_BLOCK | GX2R_RESOURCE_USAGE_CPU_READ | GX2R_RESOURCE_USAGE_CPU_WRITE | GX2R_RESOURCE_USAGE_GPU_READ;
-        buffer.elemSize = size;
-        buffer.elemCount = 1;
-        GX2RCreateBuffer(&buffer);
-
-        void * lockedBuffer = GX2RLockBufferEx(&buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
-        GX2Invalidate(GX2_INVALIDATE_MODE_CPU | GX2_INVALIDATE_MODE_UNIFORM_BLOCK, lockedBuffer, buffer.elemSize * buffer.elemCount);
-        GX2RUnlockBufferEx(&buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
-
-        pixelUniform[name] = buffer;
+        uniformBuffer = buffer;
     }
     
     void Shader::initFetch()
@@ -88,6 +71,11 @@ namespace Graphic
         GX2Invalidate(GX2_INVALIDATE_MODE_CPU_SHADER, program, size);
     }
     
+    void Shader::beginFrame()
+    {
+        currentOffset = 0;
+    }
+
     void Shader::use()
     {
         GX2SetShaderMode(GX2_SHADER_MODE_UNIFORM_BLOCK);
@@ -98,30 +86,40 @@ namespace Graphic
 
     void Shader::updateVertexUniform(std::string const & name, std::span<std::byte> data)
     {
-        auto it = vertexUniform.find(name);
-        if(it == vertexUniform.end()) throw std::invalid_argument(std::format("VertexUniform name: {} is invalid", name));
-        GX2RBuffer * buffer = &it->second;
+        uint32_t mask = GX2_UNIFORM_BLOCK_ALIGNMENT - 1;
+        uint32_t alignedSize = (data.size() + mask) & ~mask;
+
+        GX2RBuffer * buffer = &uniformBuffer;
+
         void* lockedBuffer = GX2RLockBufferEx(buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
-        GX2Invalidate(GX2_INVALIDATE_MODE_CPU | GX2_INVALIDATE_MODE_UNIFORM_BLOCK, lockedBuffer, buffer->elemSize * buffer->elemCount);
-        memcpy(lockedBuffer, data.data(), data.size());
+        void* dst = static_cast<uint8_t*>(lockedBuffer) + currentOffset;
+
+        GX2Invalidate(GX2_INVALIDATE_MODE_CPU | GX2_INVALIDATE_MODE_UNIFORM_BLOCK, dst, alignedSize);
+        memcpy(dst, data.data(), data.size());
         GX2RUnlockBufferEx(buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
 
         int32_t location = getVertexUniformLocation(name.c_str());
-        GX2RSetVertexUniformBlock(const_cast<GX2RBuffer *>(buffer), location, 0);
+        GX2RSetVertexUniformBlock(const_cast<GX2RBuffer *>(buffer), location, currentOffset);
+        currentOffset += alignedSize;
     }
 
     void Shader::updatePixelUniform(std::string const & name, std::span<std::byte> data)
     {
-        auto it = pixelUniform.find(name);
-        if(it == pixelUniform.end()) throw std::invalid_argument(std::format("PixelUniform name: {} is invalid", name));
-        GX2RBuffer * buffer = &it->second;
+        uint32_t mask = GX2_UNIFORM_BLOCK_ALIGNMENT - 1;
+        uint32_t alignedSize = (data.size() + mask) & ~mask;
+
+        GX2RBuffer * buffer = &uniformBuffer;
+
         void* lockedBuffer = GX2RLockBufferEx(buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
-        GX2Invalidate(GX2_INVALIDATE_MODE_CPU | GX2_INVALIDATE_MODE_UNIFORM_BLOCK, lockedBuffer, buffer->elemSize * buffer->elemCount);
-        memcpy(lockedBuffer, data.data(), data.size());
+        void* dst = static_cast<uint8_t*>(lockedBuffer) + currentOffset;
+
+        GX2Invalidate(GX2_INVALIDATE_MODE_CPU | GX2_INVALIDATE_MODE_UNIFORM_BLOCK, dst, alignedSize);
+        memcpy(dst, data.data(), data.size());
         GX2RUnlockBufferEx(buffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK);
 
         int32_t location = getPixelUniformLocation(name.c_str());
-        GX2RSetPixelUniformBlock(const_cast<GX2RBuffer *>(buffer), location, 0);
+        GX2RSetPixelUniformBlock(const_cast<GX2RBuffer *>(buffer), location, currentOffset);
+        currentOffset += alignedSize;
     }
     
     void Shader::initPixel(void const * file)

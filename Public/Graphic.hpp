@@ -6,7 +6,6 @@
 #include <gx2/texture.h>
 #include <string>
 #include <vector>
-#include <map>
 #include <span>
 
 namespace Graphic
@@ -51,11 +50,15 @@ namespace Graphic
 
         // Initialize
         void addAttribute(std::string const & name, uint32_t offset, AttributeFormat format, EndianSwapMode swap = EndianSwapMode::Swap8In32);
-        void addVertexUniform(std::string const & name, size_t size);
-        void addPixelUniform(std::string const & name, size_t size);
+
+        // Allocate uniform buffer
+        void initUniform(size_t bufferSize);
 
         // After setting attribute
         void initFetch();
+
+        // Be sure to call it at the beginning of the frame
+        void beginFrame();
 
         // Use
         void use();
@@ -86,8 +89,9 @@ namespace Graphic
         void initPixel(void const * file);
 
         Attribute attribute;
-        std::map<std::string, GX2RBuffer> vertexUniform;
-        std::map<std::string, GX2RBuffer> pixelUniform;
+
+        GX2RBuffer uniformBuffer;
+        size_t currentOffset;
 
         GX2VertexShader * vertexShader;
         GX2PixelShader * pixelShader;
