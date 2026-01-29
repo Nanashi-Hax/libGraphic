@@ -38,11 +38,19 @@ namespace Graphic
             Float32x4 = GX2_ATTRIB_FORMAT_FLOAT_32_32_32_32
         };
 
+        enum class EndianSwapMode
+        {
+            None = GX2_ENDIAN_SWAP_NONE,
+            Swap8In16 = GX2_ENDIAN_SWAP_8_IN_16,
+            Swap8In32 = GX2_ENDIAN_SWAP_8_IN_32,
+            Default = GX2_ENDIAN_SWAP_DEFAULT,
+        };
+
         Shader(void const * file);
         ~Shader();
 
         // Initialize
-        void addAttribute(std::string const & name, uint32_t offset, AttributeFormat format);
+        void addAttribute(std::string const & name, uint32_t offset, AttributeFormat format, EndianSwapMode swap = EndianSwapMode::Swap8In32);
         void addVertexUniform(std::string const & name, size_t size);
         void addPixelUniform(std::string const & name, size_t size);
 

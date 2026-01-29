@@ -31,7 +31,7 @@ namespace Graphic
         if (fetchShader) MEMFreeToMappedMemory(fetchShader);
     }
     
-    void Shader::addAttribute(std::string const & name, uint32_t offset, AttributeFormat format)
+    void Shader::addAttribute(std::string const & name, uint32_t offset, AttributeFormat format, EndianSwapMode swap)
     {
         GX2AttribStream stream;
         stream.location = getAttributeLocation(name);
@@ -41,7 +41,7 @@ namespace Graphic
         stream.type = GX2_ATTRIB_INDEX_PER_VERTEX;
         stream.aluDivisor = 0;
         stream.mask = getAttributeMask(format);
-        stream.endianSwap = GX2_ENDIAN_SWAP_8_IN_32;
+        stream.endianSwap = static_cast<GX2EndianSwapMode>(swap);
     
         attribute.add(stream, name, offset, format);
     }
