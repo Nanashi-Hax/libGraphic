@@ -27,6 +27,8 @@ namespace Graphic
         if (vertexShader) MEMFreeToMappedMemory(vertexShader);
         if (pixelShader) MEMFreeToMappedMemory(pixelShader);
         if (fetchShader) MEMFreeToMappedMemory(fetchShader);
+
+        GX2RDestroyBufferEx(&uniformBuffer, GX2R_RESOURCE_BIND_UNIFORM_BLOCK | GX2R_RESOURCE_USAGE_CPU_WRITE | GX2R_RESOURCE_USAGE_GPU_READ);
     }
     
     void Shader::addAttribute(std::string const & name, uint32_t offset, AttributeFormat format, EndianSwapMode swap)
